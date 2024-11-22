@@ -1,6 +1,7 @@
 import asyncio
 import functools
-import random,socket
+import random
+import socket
 import sys
 import traceback
 import warnings
@@ -766,8 +767,7 @@ class TCPConnector(BaseConnector):
         if resolver is None:
             resolver = DefaultResolver(loop=self._loop)
         self._resolver = resolver
-        if family == 0:
-            family=socket.AF_INET
+
         self._use_dns_cache = use_dns_cache
         self._cached_hosts = _DNSCacheTable(ttl=ttl_dns_cache)
         self._throttle_dns_events = (
@@ -965,9 +965,24 @@ class TCPConnector(BaseConnector):
         client_error: Type[Exception] = ClientConnectorError,
         **kwargs: Any,
     ) -> Tuple[asyncio.Transport, ResponseHandler]:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Set the SO_REUSEADDR option
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        # Set the socket to non-blocking mode
+        sock.setblocking(False)
+
+        # Use asyncio to connect the socket
+        try:
+            await asyncio.wait_for(asyncio.get_event_loop().sock_connect(sock, (args[1], args[2])), timeout.sock_connect)
+        except Exception as exc:
+            sock.close()  # Close the socket on failure
+            raise client_error(req.connection_key, exc) from exc
+        kwargs['sock'] = sock
         try:
             with CeilTimeout(timeout.sock_connect):
-                return await self._loop.create_connection(*args, **kwargs)  # type: ignore  # noqa
+                return await self._loop.create_connection(args[0], **kwargs)  # type: ignore  # noqa
         except cert_errors as exc:
             raise ClientConnectorCertificateError(req.connection_key, exc) from exc
         except ssl_errors as exc:
