@@ -965,21 +965,22 @@ class TCPConnector(BaseConnector):
         client_error: Type[Exception] = ClientConnectorError,
         **kwargs: Any,
     ) -> Tuple[asyncio.Transport, ResponseHandler]:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if len(args) >= 3:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # Set the SO_REUSEADDR option
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Set the SO_REUSEADDR option
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        # Set the socket to non-blocking mode
-        sock.setblocking(False)
+            # Set the socket to non-blocking mode
+            sock.setblocking(False)
 
-        # Use asyncio to connect the socket
-        try:
-            await asyncio.wait_for(asyncio.get_event_loop().sock_connect(sock, (args[1], args[2])), timeout.sock_connect)
-        except Exception as exc:
-            sock.close()  # Close the socket on failure
-            raise client_error(req.connection_key, exc) from exc
-        kwargs['sock'] = sock
+            # Use asyncio to connect the socket
+            try:
+                await asyncio.wait_for(asyncio.get_event_loop().sock_connect(sock, (args[1], args[2])), timeout.sock_connect)
+            except Exception as exc:
+                sock.close()  # Close the socket on failure
+                raise client_error(req.connection_key, exc) from exc
+            kwargs['sock'] = sock
         try:
             with CeilTimeout(timeout.sock_connect):
                 return await self._loop.create_connection(args[0], **kwargs)  # type: ignore  # noqa
